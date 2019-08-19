@@ -130,9 +130,6 @@ func main() {
 		png.Encode(out, image)
 	} else if bitdepth == 12 {
 		image := image.NewGray16(image.Rect(0, 0, width, height))
-		for i := 0; i < len(fileslice); i++ {
-			fileslice[i] = (fileslice[i] << (16 - 12)) >> (16 - 12)
-		}
 		image.Pix = fileslice
 		out, err := os.Create((*filename)[:length-4] + ".png")
 		check(err)
