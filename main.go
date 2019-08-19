@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -42,7 +43,7 @@ func getDimensions(label *os.File) (int, int, int) {
 			heightStr := scanner.Text()
 			height, err = getDigits(heightStr, linesRegex)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "No LINES string in LBL file!")
+				log.Fatalln("No LINES string in LBL file!")
 				panic(err)
 			}
 		}
@@ -51,7 +52,7 @@ func getDimensions(label *os.File) (int, int, int) {
 			widthStr := scanner.Text()
 			width, err = getDigits(widthStr, lineSamplesRegex)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "No LINE_SAMPLES string in LBL file!")
+				log.Fatalln("No LINE_SAMPLES string in LBL file!")
 				panic(err)
 			}
 		}
@@ -60,7 +61,7 @@ func getDimensions(label *os.File) (int, int, int) {
 			bitdepthStr := scanner.Text()
 			bitdepth, err = getDigits(bitdepthStr, sampleBitsRegex)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "No SAMPLE_BITS string in LBL file!")
+				log.Fatalln("No SAMPLE_BITS string in LBL file!")
 				panic(err)
 			}
 		}
@@ -113,6 +114,9 @@ func main() {
 		label, err := os.Open(*filename)
 		check(err)
 		width, height, bitdepth = getDimensions(label)
+		if height == 0 || width == 0 || bitdepth == 0 {
+			log.Fatalln("Can't get all needed image attributes, exiting")
+		}
 	}
 
 	fmt.Printf("Width: %d, height: %d, bit depth: %d\n", width, height, bitdepth)
@@ -126,7 +130,7 @@ func main() {
 		png.Encode(out, image)
 	} else if bitdepth == 12 {
 		image := image.NewGray16(image.Rect(0, 0, width, height))
-		for i := 0; i < 0; i++ {
+		for i := 0; i < len(fileslice); i++ {
 			fileslice[i] = (fileslice[i] << (16 - 12)) >> (16 - 12)
 		}
 		image.Pix = fileslice
@@ -135,6 +139,13 @@ func main() {
 		defer out.Close()
 		png.Encode(out, image)
 	} else if bitdepth == 16 {
+		image := image.NewGray16(image.Rect(0, 0, width, height))
+		image.Pix = fileslice
+		out, err := os.Create((*filename)[:length-4] + ".png")
+		check(err)
+		defer out.Close()
+		png.Encode(out, image)
+	} else if bitdepth == 32 {
 		image := image.NewGray16(image.Rect(0, 0, width, height))
 		image.Pix = fileslice
 		out, err := os.Create((*filename)[:length-4] + ".png")
