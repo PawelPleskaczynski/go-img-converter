@@ -9,14 +9,83 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
-	"strings"
 )
 
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
+}
+
+func getDigits(input string, regex *regexp.Regexp) (int, error) {
+	match := regex.FindStringSubmatch(input)
+	height, err := strconv.Atoi(match[1])
+	return height, err
+}
+
+func getDimensions(label *os.File) (int, int, int) {
+	var width, height, bitdepth int
+	var err error
+
+	// endRegexWhitespace := regexp.MustCompile(`\s{50,}`)
+	linesRegex := regexp.MustCompile(`(?:LINES)(?:\s+)?(?:=)(?:\s+)?(\d+)`)
+	lineSamplesRegex := regexp.MustCompile(`(?:LINE_SAMPLES)(?:\s+)?(?:=)(?:\s+)?(\d+)`)
+	sampleBitsRegex := regexp.MustCompile(`(?:BITS)(?:\s+)?(?:=)(?:\s+)?(\d+)`)
+
+	scanner := bufio.NewScanner(label)
+	buf := make([]byte, 0, 64*1024*1024)
+	scanner.Buffer(buf, 1024*1024)
+	for scanner.Scan() {
+		if linesRegex.MatchString(scanner.Text()) {
+			heightStr := scanner.Text()
+			height, err = getDigits(heightStr, linesRegex)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "No LINES string in LBL file!")
+				panic(err)
+			}
+		}
+
+		if lineSamplesRegex.MatchString(scanner.Text()) {
+			widthStr := scanner.Text()
+			width, err = getDigits(widthStr, lineSamplesRegex)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "No LINE_SAMPLES string in LBL file!")
+				panic(err)
+			}
+		}
+
+		if sampleBitsRegex.MatchString(scanner.Text()) {
+			bitdepthStr := scanner.Text()
+			bitdepth, err = getDigits(bitdepthStr, sampleBitsRegex)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "No SAMPLE_BITS string in LBL file!")
+				panic(err)
+			}
+		}
+
+		// if endRegexWhitespace.MatchString(scanner.Text()) {
+		// 	whitespaceLength := len(endRegexWhitespace.FindStringSubmatch(scanner.Text())[0])
+		// 	endbyte += whitespaceLength
+		// 	println(endRegexWhitespace.FindStringSubmatch(scanner.Text())[0])
+		// 	println(endbyte)
+		// 	broke = true
+		// 	break
+		// } else {
+		// 	endbyte += len(scanner.Text())
+		// }
+	}
+
+	if err := scanner.Err(); err != nil {
+		panic(err)
+	}
+
+	// if broke == false {
+	// 	endbyte = 0
+	// }
+
+	return width, height, bitdepth
 }
 
 func main() {
@@ -34,41 +103,32 @@ func main() {
 	fileslice := []byte(buf.Bytes())
 	file.Close()
 
-	label, err := os.Open(*labelname)
-	check(err)
-	scanner := bufio.NewScanner(label)
-	for scanner.Scan() {
-		if strings.Contains(scanner.Text(), "LINES") {
-			height, err = strconv.Atoi(strings.TrimSpace(scanner.Text()[32:]))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "No LINES string in LBL file!")
-				panic(err)
-			}
-		}
-		if strings.Contains(scanner.Text(), "LINE_SAMPLES") {
-			width, err = strconv.Atoi(strings.TrimSpace(scanner.Text()[32:]))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "No LINE_SAMPLES string in LBL file!")
-				panic(err)
-			}
-		}
-		if strings.Contains(scanner.Text(), "SAMPLE_BITS") {
-			bitdepth, err = strconv.Atoi(strings.TrimSpace(scanner.Text()[32:]))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "No SAMPLE_BITS string in LBL file!")
-				panic(err)
-			} else if bitdepth != 8 && bitdepth != 16 {
-				fmt.Fprintln(os.Stderr, "Invalid bit depth")
-			}
-		}
+	if *labelname != "" {
+		label, err := os.Open(*labelname)
+		check(err)
+		width, height, bitdepth = getDimensions(label)
 	}
 
-	if err := scanner.Err(); err != nil {
-		panic(err)
+	if height == 0 || width == 0 || bitdepth == 0 {
+		label, err := os.Open(*filename)
+		check(err)
+		width, height, bitdepth = getDimensions(label)
 	}
+
+	fmt.Printf("Width: %d, height: %d, bit depth: %d\n", width, height, bitdepth)
 
 	if bitdepth == 8 {
 		image := image.NewGray(image.Rect(0, 0, width, height))
+		image.Pix = fileslice
+		out, err := os.Create((*filename)[:length-4] + ".png")
+		check(err)
+		defer out.Close()
+		png.Encode(out, image)
+	} else if bitdepth == 12 {
+		image := image.NewGray16(image.Rect(0, 0, width, height))
+		for i := 0; i < 0; i++ {
+			fileslice[i] = (fileslice[i] << (16 - 12)) >> (16 - 12)
+		}
 		image.Pix = fileslice
 		out, err := os.Create((*filename)[:length-4] + ".png")
 		check(err)
