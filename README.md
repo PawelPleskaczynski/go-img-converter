@@ -3,11 +3,14 @@
 `go-img-converter` is open-source substitute for IMG2PNG software written in Go. It's used for converting images in IMG format, mainly used by NASA PDS to a more convenient format, like PNG (for now it only supports PNG). It can read 8-bit and 16-bit IMG/VIC files (and 12-bit ones from InSight mission).
 
 I tested conversion on images from following probes:
-- Mars Science Laboratory
-- InSight
+- Cassini
+- Clementine
+- InSight (not every image)
 - Juno
-- Clementine 1
-- I'll test with other sats/probes soon
+- LCROSS
+- Magellan
+- Mars Exploration Rover
+- Mars Science Laboratory
 
 ### Usage
 `go-img-converter -input input.IMG -label label.LBL`
